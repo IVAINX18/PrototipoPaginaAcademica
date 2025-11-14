@@ -184,30 +184,50 @@ async function listarCursos() {
             return;
         }
 
-        tbody.innerHTML = cursos.map(c => `
-            <tr>
-                <td>${escapeHtml(c.nombre)}</td>
-                <td>${escapeHtml(c.codigo)}</td>
-                <td>${c.num_estudiantes || 0}</td>
-                <td>${c.num_actividades || 0}</td>
-                <td>${c.promedio ? parseFloat(c.promedio).toFixed(2) : '-'}</td>
-                <td>
-                    <span class="status ${c.estado === 'Activo' ? 'active' : 'pending'}">
-                        ${escapeHtml(c.estado)}
-                    </span>
-                </td>
-                <td>
-                    <div class="actions">
-                        <button class="btn-icon edit" title="Editar" onclick="alert('Función en desarrollo')">
-                            <i class="fas fa-edit"></i>
-                        </button>
-                        <button class="btn-icon delete" title="Eliminar" onclick="eliminarCurso(${c.id_curso})">
-                            <i class="fas fa-trash"></i>
-                        </button>
-                    </div>
-                </td>
-            </tr>
-        `).join("");
+        tbody.innerHTML = cursos.map(c => {
+            // Calcular promedio y formato
+            let promedioHtml = '-';
+            let promedioColor = '#999';
+            
+            if (c.promedio !== null && c.promedio !== undefined && c.num_estudiantes > 0) {
+                const promedio = parseFloat(c.promedio);
+                promedioHtml = promedio.toFixed(2);
+                
+                // Colores según el promedio
+                if (promedio >= 4.0) {
+                    promedioColor = '#27ae60'; // Verde
+                } else if (promedio >= 3.0) {
+                    promedioColor = '#f39c12'; // Naranja
+                } else {
+                    promedioColor = '#e74c3c'; // Rojo
+                }
+            }
+            
+            return `
+                <tr>
+                    <td>${escapeHtml(c.nombre)}</td>
+                    <td>${escapeHtml(c.codigo)}</td>
+                    <td>${c.num_estudiantes || 0}</td>
+                    <td>${c.num_actividades || 0}</td>
+                    <td style="font-weight: bold; color: ${promedioColor};">${promedioHtml}</td>
+                    <td>
+                        <span class="status ${c.estado === 'Activo' ? 'active' : 'pending'}">
+                            ${escapeHtml(c.estado)}
+                        </span>
+                    </td>
+                    <td>
+                        <div class="actions">
+                            <button class="btn-icon edit" title="Editar" onclick="alert('Función en desarrollo')">
+                                <i class="fas fa-edit"></i>
+                            </button>
+                            <button class="btn-icon delete" title="Eliminar" onclick="eliminarCurso(${c.id_curso})">
+                                <i class="fas fa-trash"></i>
+                            </button>
+                        </div>
+                    </td>
+                </tr>
+            `;
+        }).join("");
 
     } catch (err) {
         console.error("Error al listar cursos:", err);

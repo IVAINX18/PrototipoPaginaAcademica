@@ -16,7 +16,7 @@ function sendJSON($data, $status = 200) {
     exit;
 }
 
-// Conectar a la base de datos
+// Conectar a la base de datos Clever Cloud
 try {
     $host = "bliw09vjkqs6npl8riiy-mysql.services.clever-cloud.com";
     $dbname = "bliw09vjkqs6npl8riiy";
@@ -40,6 +40,7 @@ try {
 }
 
 $method = $_SERVER['REQUEST_METHOD'];
+
 // ============================================
 // GET - Listar todos los cursos
 // ============================================
@@ -50,13 +51,25 @@ if ($method === 'GET') {
                 c.*,
                 d.nombre as docente_nombre,
                 (SELECT COUNT(*) FROM estudiantes WHERE id_curso = c.id_curso) as num_estudiantes,
-                (SELECT COUNT(*) FROM actividades WHERE id_curso = c.id_curso) as num_actividades
+                (SELECT COUNT(*) FROM actividades WHERE id_curso = c.id_curso) as num_actividades,
+                (SELECT ROUND(AVG(nota_final), 2) 
+                 FROM estudiantes 
+                 WHERE id_curso = c.id_curso 
+                 AND nota_final IS NOT NULL) as promedio
             FROM cursos c
             LEFT JOIN docentes d ON c.id_docente = d.id_docente
             ORDER BY c.id_curso DESC
         ");
         
         $cursos = $stmt->fetchAll();
+        
+        // Asegurar que promedio sea numérico o null
+        foreach ($cursos as &$curso) {
+            if ($curso['promedio'] !== null) {
+                $curso['promedio'] = floatval($curso['promedio']);
+            }
+        }
+        
         sendJSON($cursos);
         
     } catch (PDOException $e) {
@@ -126,6 +139,57 @@ if ($method === 'POST') {
         sendJSON([
             'success' => false,
             'error' => 'Error al crear curso',
+            'details' => $e->getMessage()
+        ], 500);
+    }
+}
+
+// ============================================
+// PUT - Actualizar curso
+// ============================================
+if ($method === 'PUT') {
+    try {
+        $input = file_get_contents("php://input");
+        $data = json_decode($input, true);
+        
+        if (json_last_error() !== JSON_ERROR_NONE) {
+            sendJSON([
+                'success' => false,
+                'error' => 'JSON inválido'
+            ], 400);
+        }
+        
+        if (empty($data['id_curso'])) {
+            sendJSON([
+                'success' => false,
+                'error' => 'ID de curso es obligatorio'
+            ], 400);
+        }
+        
+        $stmt = $pdo->prepare("
+            UPDATE cursos 
+            SET nombre = ?, codigo = ?, descripcion = ?, estado = ?, id_docente = ?
+            WHERE id_curso = ?
+        ");
+        
+        $stmt->execute([
+            $data['nombre'],
+            $data['codigo'],
+            $data['descripcion'] ?? '',
+            $data['estado'] ?? 'Activo',
+            $data['id_docente'] ?? 1,
+            $data['id_curso']
+        ]);
+        
+        sendJSON([
+            'success' => true,
+            'message' => 'Curso actualizado correctamente'
+        ]);
+        
+    } catch (PDOException $e) {
+        sendJSON([
+            'success' => false,
+            'error' => 'Error al actualizar curso',
             'details' => $e->getMessage()
         ], 500);
     }
