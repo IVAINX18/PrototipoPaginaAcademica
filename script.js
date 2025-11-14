@@ -1,9 +1,10 @@
 // =================================
 // CONFIGURACIÓN
 // =================================
-// Ruta correcta sin duplicados
 const API_CURSOS = "api/cursos.php";
 const API_ESTUDIANTES = "api/estudiantes.php";
+const API_ACTIVIDADES = "api/actividades.php";
+const API_REPORTES = "api/reportes.php";
 
 // =================================
 // NAVEGACIÓN
@@ -34,76 +35,96 @@ document.addEventListener('DOMContentLoaded', function() {
             if (pageElement) {
                 pageElement.classList.add('active');
                 
-                // Cargar cursos cuando se accede a la página de cursos
-                if (targetPage === 'courses') {
-                    cargarTarjetasCursos();
-                }
-                
-                // Cargar estudiantes cuando se accede a la página de estudiantes
-                if (targetPage === 'students') {
-                    listarEstudiantes();
+                // Cargar datos según la página
+                switch(targetPage) {
+                    case 'courses':
+                        cargarTarjetasCursos();
+                        break;
+                    case 'students':
+                        listarEstudiantes();
+                        break;
+                    case 'activities':
+                        listarActividades();
+                        break;
+                    case 'reports':
+                        cargarReportes();
+                        break;
                 }
             }
         });
     });
     
-    // Cargar cursos al iniciar
+    // Cargar datos iniciales
+    cargarEstadisticasGenerales();
     listarCursos();
 });
 
 // =================================
+// ESTADÍSTICAS GENERALES
+// =================================
+async function cargarEstadisticasGenerales() {
+    try {
+        const res = await fetch(`${API_REPORTES}?action=general`);
+        const stats = await res.json();
+        
+        if (stats) {
+            document.getElementById('totalCursos').textContent = stats.cursos_activos || 0;
+            document.getElementById('totalEstudiantes').textContent = stats.total_estudiantes || 0;
+            document.getElementById('totalActividades').textContent = stats.total_actividades || 0;
+            document.getElementById('promedioGeneral').textContent = stats.promedio_general || '0.0';
+        }
+    } catch (err) {
+        console.error('Error al cargar estadísticas:', err);
+    }
+}
+
+// =================================
 // FUNCIONALIDAD DE CURSOS
 // =================================
-
-// Referencias a elementos del formulario
-const formDash = document.getElementById("formCursoDash");
 const btnNuevo = document.getElementById("btnAgregarCursoDash");
+const formDash = document.getElementById("formCursoDash");
 const btnCancelar = document.getElementById("cancelarCursoDash");
 const btnGuardar = document.getElementById("guardarCursoDash");
 
 // Mostrar/ocultar formulario
-btnNuevo.addEventListener("click", () => {
-    const isVisible = formDash.style.display !== "none";
-    formDash.style.display = isVisible ? "none" : "block";
-    
-    if (!isVisible) {
-        // Limpiar formulario al abrir
-        document.getElementById("nombreCursoDash").value = "";
-        document.getElementById("codigoCursoDash").value = "";
-        document.getElementById("descripcionCursoDash").value = "";
-        document.getElementById("estadoCursoDash").value = "Activo";
-    }
-});
+if (btnNuevo) {
+    btnNuevo.addEventListener("click", () => {
+        const isVisible = formDash.style.display !== "none";
+        formDash.style.display = isVisible ? "none" : "block";
+        
+        if (!isVisible) {
+            limpiarFormularioCurso();
+        }
+    });
+}
 
-btnCancelar.addEventListener("click", () => {
-    formDash.style.display = "none";
-    // Limpiar campos
-    document.getElementById("nombreCursoDash").value = "";
-    document.getElementById("codigoCursoDash").value = "";
-    document.getElementById("descripcionCursoDash").value = "";
-});
+if (btnCancelar) {
+    btnCancelar.addEventListener("click", () => {
+        formDash.style.display = "none";
+        limpiarFormularioCurso();
+    });
+}
 
 // Guardar nuevo curso
-btnGuardar.addEventListener("click", async () => {
+if (btnGuardar) {
+    btnGuardar.addEventListener("click", guardarCurso);
+}
+
+async function guardarCurso() {
     const nombre = document.getElementById("nombreCursoDash").value.trim();
     const codigo = document.getElementById("codigoCursoDash").value.trim();
     const descripcion = document.getElementById("descripcionCursoDash").value.trim();
     const estado = document.getElementById("estadoCursoDash").value;
 
-    // Validación
     if (!nombre || !codigo) {
         alert("⚠️ Por favor completa el nombre y código del curso.");
         return;
     }
 
-    // Deshabilitar botón mientras se guarda
     btnGuardar.disabled = true;
     btnGuardar.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Guardando...';
 
     try {
-        console.log("Enviando a:", API_CURSOS); // Debug
-        console.log("Datos:", { nombre, codigo, descripcion, estado }); // Debug
-        
         const res = await fetch(API_CURSOS, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
@@ -112,57 +133,41 @@ btnGuardar.addEventListener("click", async () => {
                 codigo, 
                 descripcion, 
                 estado,
-                id_docente: 1 // ID del docente Javier V. Vaca
+                id_docente: 1
             })
         });
 
-        console.log("Status:", res.status); // Debug
-        console.log("Response OK:", res.ok); // Debug
-
-        if (!res.ok) {
-            throw new Error(`HTTP Error: ${res.status} - ${res.statusText}`);
-        }
-
         const data = await res.json();
-        console.log("Respuesta del servidor:", data); // Debug
 
         if (data.success) {
             alert("✅ Curso agregado correctamente");
-            
-            // Limpiar formulario
-            document.getElementById("nombreCursoDash").value = "";
-            document.getElementById("codigoCursoDash").value = "";
-            document.getElementById("descripcionCursoDash").value = "";
-            document.getElementById("estadoCursoDash").value = "Activo";
-            
-            // Ocultar formulario
+            limpiarFormularioCurso();
             formDash.style.display = "none";
-            
-            // Recargar lista de cursos
             listarCursos();
             cargarTarjetasCursos();
+            cargarEstadisticasGenerales();
         } else {
             alert("⚠️ Error: " + (data.error || "No se pudo agregar el curso."));
         }
     } catch (err) {
-        console.error("Error completo:", err);
-        alert(`❌ Error de conexión: ${err.message}\n\nRevisa la consola (F12) para más detalles.`);
+        console.error("Error:", err);
+        alert(`❌ Error de conexión: ${err.message}`);
     } finally {
-        // Rehabilitar botón
         btnGuardar.disabled = false;
         btnGuardar.innerHTML = '<i class="fas fa-save"></i> Guardar Curso';
     }
-});
+}
 
-// Función para listar cursos en la tabla del dashboard
+function limpiarFormularioCurso() {
+    document.getElementById("nombreCursoDash").value = "";
+    document.getElementById("codigoCursoDash").value = "";
+    document.getElementById("descripcionCursoDash").value = "";
+    document.getElementById("estadoCursoDash").value = "Activo";
+}
+
 async function listarCursos() {
     try {
         const res = await fetch(API_CURSOS);
-        
-        if (!res.ok) {
-            throw new Error("HTTP " + res.status);
-        }
-        
         const cursos = await res.json();
         const tbody = document.getElementById("tbodyCursos");
         
@@ -171,13 +176,11 @@ async function listarCursos() {
         if (cursos.length === 0) {
             tbody.innerHTML = `
                 <tr>
-                    <td colspan="6" style="text-align: center; padding: 20px;">
-                        No hay cursos registrados. Crea tu primer curso usando el botón "Nuevo Curso".
+                    <td colspan="7" style="text-align: center; padding: 20px;">
+                        No hay cursos registrados.
                     </td>
                 </tr>
             `;
-            // Actualizar contador
-            document.getElementById("totalCursos").textContent = "0";
             return;
         }
 
@@ -187,6 +190,7 @@ async function listarCursos() {
                 <td>${escapeHtml(c.codigo)}</td>
                 <td>${c.num_estudiantes || 0}</td>
                 <td>${c.num_actividades || 0}</td>
+                <td>${c.promedio ? parseFloat(c.promedio).toFixed(2) : '-'}</td>
                 <td>
                     <span class="status ${c.estado === 'Activo' ? 'active' : 'pending'}">
                         ${escapeHtml(c.estado)}
@@ -194,10 +198,10 @@ async function listarCursos() {
                 </td>
                 <td>
                     <div class="actions">
-                        <button class="btn-icon edit" title="Editar" data-id="${c.id_curso}">
+                        <button class="btn-icon edit" title="Editar" onclick="alert('Función en desarrollo')">
                             <i class="fas fa-edit"></i>
                         </button>
-                        <button class="btn-icon delete" title="Eliminar" data-id="${c.id_curso}">
+                        <button class="btn-icon delete" title="Eliminar" onclick="eliminarCurso(${c.id_curso})">
                             <i class="fas fa-trash"></i>
                         </button>
                     </div>
@@ -205,68 +209,32 @@ async function listarCursos() {
             </tr>
         `).join("");
 
-        // Actualizar contador de cursos
-        const cursosActivos = cursos.filter(c => c.estado === 'Activo').length;
-        document.getElementById("totalCursos").textContent = cursosActivos;
-
-        // Agregar eventos a botones de eliminar
-        document.querySelectorAll(".btn-icon.delete").forEach(btn => {
-            btn.addEventListener("click", () => {
-                const id = btn.getAttribute("data-id");
-                eliminarCurso(id);
-            });
-        });
-
-        // Agregar eventos a botones de editar (para futuro)
-        document.querySelectorAll(".btn-icon.edit").forEach(btn => {
-            btn.addEventListener("click", () => {
-                const id = btn.getAttribute("data-id");
-                alert("Función de editar en desarrollo. ID: " + id);
-            });
-        });
-
     } catch (err) {
         console.error("Error al listar cursos:", err);
-        const tbody = document.getElementById("tbodyCursos");
-        if (tbody) {
-            tbody.innerHTML = `
-                <tr>
-                    <td colspan="6" style="text-align: center; color: red; padding: 20px;">
-                        ❌ Error al cargar los cursos. Verifica la conexión con el servidor.
-                    </td>
-                </tr>
-            `;
-        }
     }
 }
 
-// Función para eliminar curso
 async function eliminarCurso(id) {
-    if (!confirm("¿Seguro que deseas eliminar este curso? Esta acción no se puede deshacer.")) {
-        return;
-    }
+    if (!confirm("¿Seguro que deseas eliminar este curso?")) return;
 
     try {
-        const res = await fetch(API_CURSOS + "?id=" + id, { 
-            method: "DELETE" 
-        });
-        
+        const res = await fetch(`${API_CURSOS}?id=${id}`, { method: "DELETE" });
         const data = await res.json();
 
         if (data.success) {
             alert("✅ Curso eliminado correctamente");
             listarCursos();
             cargarTarjetasCursos();
+            cargarEstadisticasGenerales();
         } else {
-            alert("⚠️ Error al eliminar: " + (data.error || ""));
+            alert("⚠️ Error: " + (data.error || ""));
         }
     } catch (err) {
-        console.error("Error al eliminar curso:", err);
+        console.error("Error:", err);
         alert("❌ No se pudo eliminar el curso.");
     }
 }
 
-// Función para cargar tarjetas de cursos en la página "Mis Cursos"
 async function cargarTarjetasCursos() {
     try {
         const res = await fetch(API_CURSOS);
@@ -303,7 +271,7 @@ async function cargarTarjetasCursos() {
                             <div class="course-stat-label">Actividades</div>
                         </div>
                         <div class="course-stat">
-                            <div class="course-stat-value">-</div>
+                            <div class="course-stat-value">${c.promedio ? parseFloat(c.promedio).toFixed(1) : '-'}</div>
                             <div class="course-stat-label">Promedio</div>
                         </div>
                     </div>
@@ -312,48 +280,20 @@ async function cargarTarjetasCursos() {
         `).join("");
 
     } catch (err) {
-        console.error("Error al cargar tarjetas:", err);
+        console.error("Error:", err);
     }
-}
-
-// Función para búsqueda de cursos
-const buscarInput = document.getElementById("buscarCurso");
-if (buscarInput) {
-    buscarInput.addEventListener("input", function() {
-        const termino = this.value.toLowerCase();
-        const filas = document.querySelectorAll("#tbodyCursos tr");
-        
-        filas.forEach(fila => {
-            const texto = fila.textContent.toLowerCase();
-            fila.style.display = texto.includes(termino) ? "" : "none";
-        });
-    });
-}
-
-// Utilidad para prevenir inyección HTML
-function escapeHtml(str) {
-    if (!str) return "";
-    return String(str)
-        .replace(/&/g, "&amp;")
-        .replace(/</g, "&lt;")
-        .replace(/>/g, "&gt;")
-        .replace(/"/g, "&quot;")
-        .replace(/'/g, "&#039;");
 }
 
 // =================================
 // FUNCIONALIDAD DE ESTUDIANTES
 // =================================
-
 let estudianteEditando = null;
 
-// Referencias a elementos del formulario de estudiantes
 const formEstudiante = document.getElementById("formEstudiante");
 const btnAgregarEstudiante = document.getElementById("btnAgregarEstudiante");
 const btnCancelarEstudiante = document.getElementById("cancelarEstudiante");
 const btnGuardarEstudiante = document.getElementById("guardarEstudiante");
 
-// Mostrar/ocultar formulario de estudiante
 if (btnAgregarEstudiante) {
     btnAgregarEstudiante.addEventListener("click", () => {
         estudianteEditando = null;
@@ -375,77 +315,61 @@ if (btnCancelarEstudiante) {
     });
 }
 
-// Guardar estudiante (crear o actualizar)
 if (btnGuardarEstudiante) {
-    btnGuardarEstudiante.addEventListener("click", async () => {
-        const nombre = document.getElementById("nombreEstudiante").value.trim();
-        const id_curso = document.getElementById("cursoEstudiante").value;
-        const nota_final = document.getElementById("notaEstudiante").value;
-
-        if (!nombre) {
-            alert("⚠️ Por favor ingresa el nombre del estudiante.");
-            return;
-        }
-
-        btnGuardarEstudiante.disabled = true;
-        btnGuardarEstudiante.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Guardando...';
-
-        try {
-            const url = estudianteEditando 
-                ? API_ESTUDIANTES 
-                : API_ESTUDIANTES;
-            
-            const method = estudianteEditando ? "PUT" : "POST";
-            
-            const body = {
-                nombre,
-                id_curso: id_curso || null,
-                nota_final: nota_final || null
-            };
-
-            if (estudianteEditando) {
-                body.id_estudiante = estudianteEditando;
-            }
-
-            const res = await fetch(url, {
-                method: method,
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify(body)
-            });
-
-            const data = await res.json();
-
-            if (data.success) {
-                alert(estudianteEditando 
-                    ? "✅ Estudiante actualizado correctamente" 
-                    : "✅ Estudiante agregado correctamente");
-                
-                limpiarFormularioEstudiante();
-                formEstudiante.style.display = "none";
-                estudianteEditando = null;
-                listarEstudiantes();
-            } else {
-                alert("⚠️ Error: " + (data.error || "No se pudo guardar el estudiante."));
-            }
-        } catch (err) {
-            console.error("Error al guardar estudiante:", err);
-            alert("❌ Error de conexión con el servidor.");
-        } finally {
-            btnGuardarEstudiante.disabled = false;
-            btnGuardarEstudiante.innerHTML = '<i class="fas fa-save"></i> Guardar Estudiante';
-        }
-    });
+    btnGuardarEstudiante.addEventListener("click", guardarEstudiante);
 }
 
-// Función para listar estudiantes
+async function guardarEstudiante() {
+    const nombre = document.getElementById("nombreEstudiante").value.trim();
+    const id_curso = document.getElementById("cursoEstudiante").value;
+    const nota_final = document.getElementById("notaEstudiante").value;
+
+    if (!nombre) {
+        alert("⚠️ El nombre es obligatorio.");
+        return;
+    }
+
+    btnGuardarEstudiante.disabled = true;
+    btnGuardarEstudiante.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Guardando...';
+
+    try {
+        const method = estudianteEditando ? "PUT" : "POST";
+        const body = { nombre, id_curso: id_curso || null, nota_final: nota_final || null };
+
+        if (estudianteEditando) {
+            body.id_estudiante = estudianteEditando;
+        }
+
+        const res = await fetch(API_ESTUDIANTES, {
+            method: method,
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(body)
+        });
+
+        const data = await res.json();
+
+        if (data.success) {
+            alert(estudianteEditando ? "✅ Actualizado" : "✅ Estudiante agregado");
+            limpiarFormularioEstudiante();
+            formEstudiante.style.display = "none";
+            estudianteEditando = null;
+            listarEstudiantes();
+            cargarEstadisticasGenerales();
+        } else {
+            alert("⚠️ Error: " + (data.error || ""));
+        }
+    } catch (err) {
+        console.error("Error:", err);
+        alert("❌ Error de conexión.");
+    } finally {
+        btnGuardarEstudiante.disabled = false;
+        btnGuardarEstudiante.innerHTML = '<i class="fas fa-save"></i> Guardar Estudiante';
+    }
+}
+
 async function listarEstudiantes() {
     try {
         const res = await fetch(API_ESTUDIANTES);
-        
-        if (!res.ok) {
-            throw new Error("HTTP " + res.status);
-        }
-        
         const estudiantes = await res.json();
         const tbody = document.getElementById("tbodyEstudiantes");
         
@@ -454,87 +378,70 @@ async function listarEstudiantes() {
         if (estudiantes.length === 0) {
             tbody.innerHTML = `
                 <tr>
-                    <td colspan="5" style="text-align: center; padding: 20px;">
-                        No hay estudiantes registrados. Agrega el primer estudiante usando el botón "Agregar Estudiante".
+                    <td colspan="6" style="text-align: center; padding: 20px;">
+                        No hay estudiantes registrados.
                     </td>
                 </tr>
             `;
             return;
         }
 
-        tbody.innerHTML = estudiantes.map(e => `
-            <tr>
-                <td>${e.id_estudiante}</td>
-                <td>${escapeHtml(e.nombre)}</td>
-                <td>${escapeHtml(e.curso_nombre || 'Sin curso')}</td>
-                <td>${e.nota_final !== null ? parseFloat(e.nota_final).toFixed(1) : '-'}</td>
-                <td>
-                    <div class="actions">
-                        <button class="btn-icon edit" title="Editar" data-id="${e.id_estudiante}">
-                            <i class="fas fa-edit"></i>
-                        </button>
-                        <button class="btn-icon delete" title="Eliminar" data-id="${e.id_estudiante}">
-                            <i class="fas fa-trash"></i>
-                        </button>
-                    </div>
-                </td>
-            </tr>
-        `).join("");
-
-        // Eventos para editar
-        document.querySelectorAll("#tbodyEstudiantes .btn-icon.edit").forEach(btn => {
-            btn.addEventListener("click", () => {
-                const id = btn.getAttribute("data-id");
-                editarEstudiante(id);
-            });
-        });
-
-        // Eventos para eliminar
-        document.querySelectorAll("#tbodyEstudiantes .btn-icon.delete").forEach(btn => {
-            btn.addEventListener("click", () => {
-                const id = btn.getAttribute("data-id");
-                eliminarEstudiante(id);
-            });
-        });
-
-    } catch (err) {
-        console.error("Error al listar estudiantes:", err);
-        const tbody = document.getElementById("tbodyEstudiantes");
-        if (tbody) {
-            tbody.innerHTML = `
+        tbody.innerHTML = estudiantes.map(e => {
+            const nota = e.nota_final !== null ? parseFloat(e.nota_final).toFixed(1) : '-';
+            let estadoHtml = '-';
+            
+            if (e.nota_final !== null) {
+                if (e.nota_final >= 3.0) {
+                    estadoHtml = '<span class="status active">Aprobado</span>';
+                } else {
+                    estadoHtml = '<span class="status pending">Reprobado</span>';
+                }
+            }
+            
+            return `
                 <tr>
-                    <td colspan="5" style="text-align: center; color: red; padding: 20px;">
-                        ❌ Error al cargar los estudiantes.
+                    <td>${e.id_estudiante}</td>
+                    <td>${escapeHtml(e.nombre)}</td>
+                    <td>${escapeHtml(e.curso_nombre || 'Sin curso')}</td>
+                    <td>${nota}</td>
+                    <td>${estadoHtml}</td>
+                    <td>
+                        <div class="actions">
+                            <button class="btn-icon edit" title="Editar" onclick="editarEstudiante(${e.id_estudiante})">
+                                <i class="fas fa-edit"></i>
+                            </button>
+                            <button class="btn-icon delete" title="Eliminar" onclick="eliminarEstudiante(${e.id_estudiante})">
+                                <i class="fas fa-trash"></i>
+                            </button>
+                        </div>
                     </td>
                 </tr>
             `;
-        }
+        }).join("");
+
+    } catch (err) {
+        console.error("Error:", err);
     }
 }
 
-// Función para cargar cursos en el select
 async function cargarCursosEnSelect() {
     try {
         const res = await fetch(API_CURSOS);
         const cursos = await res.json();
         
-        const select = document.getElementById("cursoEstudiante");
-        if (!select) return;
+        const selectEstudiante = document.getElementById("cursoEstudiante");
+        const selectActividad = document.getElementById("cursoActividad");
         
-        select.innerHTML = '<option value="">Seleccione un curso</option>';
+        const opciones = '<option value="">Seleccione un curso</option>' + 
+            cursos.map(c => `<option value="${c.id_curso}">${c.nombre} (${c.codigo})</option>`).join("");
         
-        cursos.forEach(curso => {
-            const option = document.createElement("option");
-            option.value = curso.id_curso;
-            option.textContent = `${curso.nombre} (${curso.codigo})`;
-            select.appendChild(option);
-        });
+        if (selectEstudiante) selectEstudiante.innerHTML = opciones;
+        if (selectActividad) selectActividad.innerHTML = opciones;
     } catch (err) {
-        console.error("Error al cargar cursos:", err);
+        console.error("Error:", err);
     }
 }
 
-// Función para editar estudiante
 async function editarEstudiante(id) {
     try {
         const res = await fetch(`${API_ESTUDIANTES}?id=${id}`);
@@ -552,44 +459,421 @@ async function editarEstudiante(id) {
             formEstudiante.style.display = "block";
         }
     } catch (err) {
-        console.error("Error al cargar estudiante:", err);
-        alert("❌ Error al cargar los datos del estudiante.");
+        console.error("Error:", err);
+        alert("❌ Error al cargar estudiante.");
     }
 }
 
-// Función para eliminar estudiante
 async function eliminarEstudiante(id) {
-    if (!confirm("¿Seguro que deseas eliminar este estudiante? Esta acción no se puede deshacer.")) {
-        return;
-    }
+    if (!confirm("¿Eliminar este estudiante?")) return;
 
     try {
-        const res = await fetch(`${API_ESTUDIANTES}?id=${id}`, { 
-            method: "DELETE" 
-        });
-        
+        const res = await fetch(`${API_ESTUDIANTES}?id=${id}`, { method: "DELETE" });
         const data = await res.json();
 
         if (data.success) {
-            alert("✅ Estudiante eliminado correctamente");
+            alert("✅ Estudiante eliminado");
             listarEstudiantes();
+            cargarEstadisticasGenerales();
         } else {
-            alert("⚠️ Error al eliminar: " + (data.error || ""));
+            alert("⚠️ Error: " + (data.error || ""));
         }
     } catch (err) {
-        console.error("Error al eliminar estudiante:", err);
-        alert("❌ No se pudo eliminar el estudiante.");
+        console.error("Error:", err);
+        alert("❌ Error.");
     }
 }
 
-// Función para limpiar formulario
 function limpiarFormularioEstudiante() {
     document.getElementById("nombreEstudiante").value = "";
     document.getElementById("cursoEstudiante").value = "";
     document.getElementById("notaEstudiante").value = "";
 }
 
-// Búsqueda de estudiantes
+// =================================
+// FUNCIONALIDAD DE ACTIVIDADES
+// =================================
+let actividadEditando = null;
+
+const formActividad = document.getElementById("formActividad");
+const btnAgregarActividad = document.getElementById("btnAgregarActividad");
+const btnCancelarActividad = document.getElementById("cancelarActividad");
+const btnGuardarActividad = document.getElementById("guardarActividad");
+
+if (btnAgregarActividad) {
+    btnAgregarActividad.addEventListener("click", () => {
+        actividadEditando = null;
+        document.getElementById("tituloFormActividad").textContent = "Nueva Actividad";
+        formActividad.style.display = formActividad.style.display === "none" ? "block" : "none";
+        
+        if (formActividad.style.display === "block") {
+            limpiarFormularioActividad();
+            cargarCursosEnSelect();
+        }
+    });
+}
+
+if (btnCancelarActividad) {
+    btnCancelarActividad.addEventListener("click", () => {
+        formActividad.style.display = "none";
+        limpiarFormularioActividad();
+        actividadEditando = null;
+    });
+}
+
+if (btnGuardarActividad) {
+    btnGuardarActividad.addEventListener("click", guardarActividad);
+}
+
+async function guardarActividad() {
+    const nombre = document.getElementById("nombreActividad").value.trim();
+    const tipo = document.getElementById("tipoActividad").value;
+    const id_curso = document.getElementById("cursoActividad").value;
+    const fecha_entrega = document.getElementById("fechaActividad").value;
+    const porcentaje = document.getElementById("porcentajeActividad").value;
+    const estado = document.getElementById("estadoActividad").value;
+
+    if (!nombre || !id_curso) {
+        alert("⚠️ Nombre y curso son obligatorios.");
+        return;
+    }
+
+    btnGuardarActividad.disabled = true;
+    btnGuardarActividad.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Guardando...';
+
+    try {
+        const method = actividadEditando ? "PUT" : "POST";
+        const body = { 
+            nombre, 
+            tipo, 
+            id_curso, 
+            fecha_entrega: fecha_entrega || null, 
+            porcentaje: porcentaje || 0, 
+            estado 
+        };
+
+        if (actividadEditando) {
+            body.id_actividad = actividadEditando;
+        }
+
+        const res = await fetch(API_ACTIVIDADES, {
+            method: method,
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(body)
+        });
+
+        const data = await res.json();
+
+        if (data.success) {
+            alert(actividadEditando ? "✅ Actualizada" : "✅ Actividad agregada");
+            limpiarFormularioActividad();
+            formActividad.style.display = "none";
+            actividadEditando = null;
+            listarActividades();
+            cargarEstadisticasGenerales();
+        } else {
+            alert("⚠️ Error: " + (data.error || ""));
+        }
+    } catch (err) {
+        console.error("Error:", err);
+        alert("❌ Error de conexión.");
+    } finally {
+        btnGuardarActividad.disabled = false;
+        btnGuardarActividad.innerHTML = '<i class="fas fa-save"></i> Guardar Actividad';
+    }
+}
+
+async function listarActividades() {
+    try {
+        const res = await fetch(API_ACTIVIDADES);
+        const actividades = await res.json();
+        const tbody = document.getElementById("tbodyActividades");
+        
+        if (!tbody) return;
+
+        if (actividades.length === 0) {
+            tbody.innerHTML = `
+                <tr>
+                    <td colspan="7" style="text-align: center; padding: 20px;">
+                        No hay actividades registradas.
+                    </td>
+                </tr>
+            `;
+            return;
+        }
+
+        tbody.innerHTML = actividades.map(a => `
+            <tr>
+                <td>${escapeHtml(a.nombre)}</td>
+                <td>${escapeHtml(a.tipo)}</td>
+                <td>${escapeHtml(a.curso_nombre || 'Sin curso')}</td>
+                <td>${a.fecha_entrega ? formatearFecha(a.fecha_entrega) : '-'}</td>
+                <td>${a.porcentaje}%</td>
+                <td>
+                    <span class="status ${a.estado === 'Activo' ? 'active' : 'pending'}">
+                        ${escapeHtml(a.estado)}
+                    </span>
+                </td>
+                <td>
+                    <div class="actions">
+                        <button class="btn-icon edit" title="Editar" onclick="editarActividad(${a.id_actividad})">
+                            <i class="fas fa-edit"></i>
+                        </button>
+                        <button class="btn-icon delete" title="Eliminar" onclick="eliminarActividad(${a.id_actividad})">
+                            <i class="fas fa-trash"></i>
+                        </button>
+                    </div>
+                </td>
+            </tr>
+        `).join("");
+
+    } catch (err) {
+        console.error("Error:", err);
+    }
+}
+
+async function editarActividad(id) {
+    try {
+        const res = await fetch(`${API_ACTIVIDADES}?id=${id}`);
+        const actividad = await res.json();
+        
+        if (actividad && !actividad.error) {
+            actividadEditando = id;
+            document.getElementById("tituloFormActividad").textContent = "Editar Actividad";
+            document.getElementById("nombreActividad").value = actividad.nombre || "";
+            document.getElementById("tipoActividad").value = actividad.tipo || "Tarea";
+            document.getElementById("fechaActividad").value = actividad.fecha_entrega || "";
+            document.getElementById("porcentajeActividad").value = actividad.porcentaje || 0;
+            document.getElementById("estadoActividad").value = actividad.estado || "Activo";
+            
+            await cargarCursosEnSelect();
+            document.getElementById("cursoActividad").value = actividad.id_curso || "";
+            
+            formActividad.style.display = "block";
+        }
+    } catch (err) {
+        console.error("Error:", err);
+        alert("❌ Error al cargar actividad.");
+    }
+}
+
+async function eliminarActividad(id) {
+    if (!confirm("¿Eliminar esta actividad?")) return;
+
+    try {
+        const res = await fetch(`${API_ACTIVIDADES}?id=${id}`, { method: "DELETE" });
+        const data = await res.json();
+
+        if (data.success) {
+            alert("✅ Actividad eliminada");
+            listarActividades();
+            cargarEstadisticasGenerales();
+        } else {
+            alert("⚠️ Error: " + (data.error || ""));
+        }
+    } catch (err) {
+        console.error("Error:", err);
+        alert("❌ Error.");
+    }
+}
+
+function limpiarFormularioActividad() {
+    document.getElementById("nombreActividad").value = "";
+    document.getElementById("tipoActividad").value = "Tarea";
+    document.getElementById("cursoActividad").value = "";
+    document.getElementById("fechaActividad").value = "";
+    document.getElementById("porcentajeActividad").value = "";
+    document.getElementById("estadoActividad").value = "Activo";
+}
+
+// =================================
+// REPORTES Y GRÁFICOS
+// =================================
+let chartEstudiantesCurso, chartRendimiento, chartPromediosCurso;
+
+async function cargarReportes() {
+    try {
+        // Gráfico de estudiantes por curso
+        await cargarGraficoEstudiantesCurso();
+        
+        // Gráfico de rendimiento
+        await cargarGraficoRendimiento();
+        
+        // Gráfico de promedios por curso
+        await cargarGraficoPromediosCurso();
+        
+        // Top 10 estudiantes
+        await cargarTopEstudiantes();
+        
+    } catch (err) {
+        console.error("Error al cargar reportes:", err);
+    }
+}
+
+async function cargarGraficoEstudiantesCurso() {
+    try {
+        const res = await fetch(`${API_REPORTES}?action=estudiantes_por_curso`);
+        const data = await res.json();
+        
+        const ctx = document.getElementById('chartEstudiantesCurso');
+        if (!ctx) return;
+        
+        if (chartEstudiantesCurso) chartEstudiantesCurso.destroy();
+        
+        chartEstudiantesCurso = new Chart(ctx, {
+            type: 'bar',
+            data: {
+                labels: data.map(d => d.curso),
+                datasets: [{
+                    label: 'Estudiantes',
+                    data: data.map(d => d.cantidad),
+                    backgroundColor: 'rgba(52, 152, 219, 0.8)',
+                    borderColor: 'rgba(52, 152, 219, 1)',
+                    borderWidth: 1
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                scales: {
+                    y: { beginAtZero: true }
+                }
+            }
+        });
+    } catch (err) {
+        console.error("Error:", err);
+    }
+}
+
+async function cargarGraficoRendimiento() {
+    try {
+        const res = await fetch(`${API_REPORTES}?action=rendimiento`);
+        const data = await res.json();
+        
+        const ctx = document.getElementById('chartRendimiento');
+        if (!ctx) return;
+        
+        if (chartRendimiento) chartRendimiento.destroy();
+        
+        chartRendimiento = new Chart(ctx, {
+            type: 'pie',
+            data: {
+                labels: data.map(d => d.estado),
+                datasets: [{
+                    data: data.map(d => d.cantidad),
+                    backgroundColor: [
+                        'rgba(39, 174, 96, 0.8)',
+                        'rgba(231, 76, 60, 0.8)',
+                        'rgba(149, 165, 166, 0.8)'
+                    ]
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false
+            }
+        });
+    } catch (err) {
+        console.error("Error:", err);
+    }
+}
+
+async function cargarGraficoPromediosCurso() {
+    try {
+        const res = await fetch(`${API_REPORTES}?action=cursos_estadisticas`);
+        const data = await res.json();
+        
+        const ctx = document.getElementById('chartPromediosCurso');
+        if (!ctx) return;
+        
+        if (chartPromediosCurso) chartPromediosCurso.destroy();
+        
+        chartPromediosCurso = new Chart(ctx, {
+            type: 'line',
+            data: {
+                labels: data.map(d => d.nombre),
+                datasets: [{
+                    label: 'Promedio',
+                    data: data.map(d => d.promedio || 0),
+                    borderColor: 'rgba(243, 156, 18, 1)',
+                    backgroundColor: 'rgba(243, 156, 18, 0.2)',
+                    tension: 0.4,
+                    fill: true
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                scales: {
+                    y: { 
+                        beginAtZero: true,
+                        max: 5
+                    }
+                }
+            }
+        });
+    } catch (err) {
+        console.error("Error:", err);
+    }
+}
+
+async function cargarTopEstudiantes() {
+    try {
+        const res = await fetch(`${API_REPORTES}?action=top_estudiantes`);
+        const data = await res.json();
+        
+        const container = document.getElementById('topEstudiantes');
+        if (!container) return;
+        
+        if (data.length === 0) {
+            container.innerHTML = '<p style="text-align: center; color: #999;">No hay datos disponibles</p>';
+            return;
+        }
+        
+        container.innerHTML = `
+            <table style="width: 100%; font-size: 0.9rem;">
+                <thead>
+                    <tr style="border-bottom: 2px solid #eee;">
+                        <th style="text-align: left; padding: 8px;">Estudiante</th>
+                        <th style="text-align: left; padding: 8px;">Curso</th>
+                        <th style="text-align: center; padding: 8px;">Nota</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    ${data.map((e, i) => `
+                        <tr style="border-bottom: 1px solid #f0f0f0;">
+                            <td style="padding: 8px;">
+                                <span style="background: #3498db; color: white; padding: 2px 6px; border-radius: 3px; font-size: 0.8rem; margin-right: 5px;">${i + 1}</span>
+                                ${escapeHtml(e.estudiante)}
+                            </td>
+                            <td style="padding: 8px;">${escapeHtml(e.curso)}</td>
+                            <td style="text-align: center; padding: 8px; font-weight: bold; color: #27ae60;">${parseFloat(e.promedio).toFixed(1)}</td>
+                        </tr>
+                    `).join('')}
+                </tbody>
+            </table>
+        `;
+    } catch (err) {
+        console.error("Error:", err);
+    }
+}
+
+// =================================
+// BÚSQUEDAS
+// =================================
+const buscarCursoInput = document.getElementById("buscarCurso");
+if (buscarCursoInput) {
+    buscarCursoInput.addEventListener("input", function() {
+        const termino = this.value.toLowerCase();
+        const filas = document.querySelectorAll("#tbodyCursos tr");
+        
+        filas.forEach(fila => {
+            const texto = fila.textContent.toLowerCase();
+            fila.style.display = texto.includes(termino) ? "" : "none";
+        });
+    });
+}
+
 const buscarEstudianteInput = document.getElementById("buscarEstudiante");
 if (buscarEstudianteInput) {
     buscarEstudianteInput.addEventListener("input", function() {
@@ -601,4 +885,39 @@ if (buscarEstudianteInput) {
             fila.style.display = texto.includes(termino) ? "" : "none";
         });
     });
+}
+
+const buscarActividadInput = document.getElementById("buscarActividad");
+if (buscarActividadInput) {
+    buscarActividadInput.addEventListener("input", function() {
+        const termino = this.value.toLowerCase();
+        const filas = document.querySelectorAll("#tbodyActividades tr");
+        
+        filas.forEach(fila => {
+            const texto = fila.textContent.toLowerCase();
+            fila.style.display = texto.includes(termino) ? "" : "none";
+        });
+    });
+}
+
+// =================================
+// UTILIDADES
+// =================================
+function escapeHtml(str) {
+    if (!str) return "";
+    return String(str)
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;")
+        .replace(/'/g, "&#039;");
+}
+
+function formatearFecha(fecha) {
+    if (!fecha) return '-';
+    const d = new Date(fecha + 'T00:00:00');
+    const dia = String(d.getDate()).padStart(2, '0');
+    const mes = String(d.getMonth() + 1).padStart(2, '0');
+    const anio = d.getFullYear();
+    return `${dia}/${mes}/${anio}`;
 }

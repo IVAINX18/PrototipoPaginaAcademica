@@ -18,12 +18,17 @@ function sendJSON($data, $status = 200) {
 
 // Conectar a la base de datos
 try {
-    $host = "localhost";
-    $dbname = "gestion_academica";
-    $username = "root";
-    $password = "";
+    $host = "bliw09vjkqs6npl8riiy-mysql.services.clever-cloud.com";
+    $dbname = "bliw09vjkqs6npl8riiy";
+    $username = "uzpowx253iteiypd";
+    $password = "2xD6kfKRP2cjPlUe119e";
+    $port = "3306";
     
-    $pdo = new PDO("mysql:host=$host;dbname=$dbname;charset=utf8mb4", $username, $password);
+    $pdo = new PDO(
+        "mysql:host=$host;port=$port;dbname=$dbname;charset=utf8mb4",
+        $username,
+        $password
+    );
     $pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
     $pdo->setAttribute(PDO::ATTR_DEFAULT_FETCH_MODE, PDO::FETCH_ASSOC);
 } catch (PDOException $e) {
