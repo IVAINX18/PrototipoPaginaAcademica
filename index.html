@@ -1,0 +1,252 @@
+<!DOCTYPE html>
+<html lang="es">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Plataforma de Gestión Académica</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="style.css">
+</head>
+
+<body>
+    <div class="container">
+        <aside class="sidebar">
+            <div class="sidebar-header">
+                <div class="logo">
+                    <i class="fas fa-graduation-cap"></i>
+                    <h2>Gestión Académica</h2>
+                </div>
+            </div>
+
+            <div class="user-info">
+                <div class="user-avatar">JV</div>
+                <div class="user-details">
+                    <h4>Javier V. Vaca</h4>
+                    <p>Docente</p>
+                </div>
+            </div>
+
+            <ul class="sidebar-menu">
+                <li><a href="#" class="nav-link active" data-page="dashboard"><i class="fas fa-home"></i> Dashboard</a></li>
+                <li><a href="#" class="nav-link" data-page="courses"><i class="fas fa-book"></i> Mis Cursos</a></li>
+                <li><a href="#" class="nav-link" data-page="students"><i class="fas fa-users"></i> Estudiantes</a></li>
+                <li><a href="#" class="nav-link" data-page="activities"><i class="fas fa-tasks"></i> Actividades</a></li>
+                <li><a href="#" class="nav-link" data-page="reports"><i class="fas fa-chart-line"></i> Reportes</a></li>
+                <li><a href="#" class="nav-link" data-page="settings"><i class="fas fa-cog"></i> Configuración</a></li>
+                <li><a href="#" class="nav-link" data-page="logout"><i class="fas fa-sign-out-alt"></i> Cerrar Sesión</a></li>
+            </ul>
+        </aside>
+
+        <main class="main-content">
+            <!-- Página Dashboard -->
+            <div id="dashboard" class="page active">
+                <div class="header">
+                    <h1>Dashboard</h1>
+                    <div class="header-actions">
+                        <button class="btn btn-secondary">
+                            <i class="fas fa-calendar-alt"></i> Calendario
+                        </button>
+                        <button id="btnAgregarCursoDash" class="btn">
+                            <i class="fas fa-plus"></i> Nuevo Curso
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Formulario para crear curso -->
+                <div id="formCursoDash" style="display:none; margin-top:10px;">
+                    <div class="form-group">
+                        <label for="nombreCursoDash"><i class="fas fa-book"></i> Nombre del Curso</label>
+                        <input type="text" id="nombreCursoDash" placeholder="Ejemplo: Arquitectura de Software" required>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="codigoCursoDash"><i class="fas fa-barcode"></i> Código</label>
+                        <input type="text" id="codigoCursoDash" placeholder="Ejemplo: 706145" required>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="descripcionCursoDash"><i class="fas fa-align-left"></i> Descripción</label>
+                        <textarea id="descripcionCursoDash" placeholder="Breve descripción del curso..."></textarea>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="estadoCursoDash"><i class="fas fa-toggle-on"></i> Estado</label>
+                        <select id="estadoCursoDash" class="form-control">
+                            <option value="Activo">Activo</option>
+                            <option value="Pendiente">Pendiente</option>
+                        </select>
+                    </div>
+
+                    <div class="form-actions">
+                        <button id="guardarCursoDash" class="btn btn-primary">
+                            <i class="fas fa-save"></i> Guardar Curso
+                        </button>
+                        <button type="button" id="cancelarCursoDash" class="btn btn-secondary">
+                            <i class="fas fa-times"></i> Cancelar
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Tarjetas de métricas -->
+                <div class="dashboard-cards">
+                    <div class="card">
+                        <div class="card-header">
+                            <h3 class="card-title">Cursos Activos</h3>
+                            <div class="card-icon primary">
+                                <i class="fas fa-book-open"></i>
+                            </div>
+                        </div>
+                        <div class="card-value" id="totalCursos">0</div>
+                        <div class="card-description">Cursos este semestre</div>
+                    </div>
+
+                    <div class="card">
+                        <div class="card-header">
+                            <h3 class="card-title">Estudiantes</h3>
+                            <div class="card-icon success">
+                                <i class="fas fa-user-graduate"></i>
+                            </div>
+                        </div>
+                        <div class="card-value">142</div>
+                        <div class="card-description">Total de estudiantes</div>
+                    </div>
+
+                    <div class="card">
+                        <div class="card-header">
+                            <h3 class="card-title">Actividades</h3>
+                            <div class="card-icon warning">
+                                <i class="fas fa-tasks"></i>
+                            </div>
+                        </div>
+                        <div class="card-value">28</div>
+                        <div class="card-description">Pendientes de calificar</div>
+                    </div>
+
+                    <div class="card">
+                        <div class="card-header">
+                            <h3 class="card-title">Promedio General</h3>
+                            <div class="card-icon danger">
+                                <i class="fas fa-chart-bar"></i>
+                            </div>
+                        </div>
+                        <div class="card-value">4.2</div>
+                        <div class="card-description">De todos los cursos</div>
+                    </div>
+                </div>
+
+                <!-- Tabla de cursos -->
+                <div class="table-container">
+                    <div class="table-header">
+                        <h2 class="table-title">Mis Cursos</h2>
+                        <div class="header-actions">
+                            <input type="text" id="buscarCurso" class="form-control" placeholder="Buscar cursos..." style="width: 250px;">
+                        </div>
+                    </div>
+
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Nombre del Curso</th>
+                                <th>Código</th>
+                                <th>Estudiantes</th>
+                                <th>Actividades</th>
+                                <th>Estado</th>
+                                <th>Acciones</th>
+                            </tr>
+                        </thead>
+                        <tbody id="tbodyCursos">
+                            <tr>
+                                <td colspan="6" style="text-align: center;">Cargando cursos...</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+
+                <!-- Tabla de actividades recientes -->
+                <div class="table-container">
+                    <div class="table-header">
+                        <h2 class="table-title">Actividades Recientes</h2>
+                        <div class="header-actions">
+                            <button class="btn btn-secondary">Ver Todas</button>
+                        </div>
+                    </div>
+
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Actividad</th>
+                                <th>Curso</th>
+                                <th>Fecha Entrega</th>
+                                <th>Calificados</th>
+                                <th>Acciones</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td>Proyecto Final</td>
+                                <td>Programación Orientada a Objetos</td>
+                                <td>30/05/2025</td>
+                                <td>5/28</td>
+                                <td>
+                                    <div class="actions">
+                                        <button class="btn-icon edit"><i class="fas fa-edit"></i></button>
+                                        <button class="btn-icon delete"><i class="fas fa-chart-line"></i></button>
+                                    </div>
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- Página Mis Cursos -->
+            <div id="courses" class="page">
+                <div class="header">
+                    <h1>Mis Cursos</h1>
+                    <div class="header-actions">
+                        <button class="btn btn-secondary">
+                            <i class="fas fa-filter"></i> Filtrar
+                        </button>
+                        <button class="btn">
+                            <i class="fas fa-plus"></i> Nuevo Curso
+                        </button>
+                    </div>
+                </div>
+
+                <div class="course-cards" id="courseCardsContainer">
+                    <!-- Los cursos se cargarán aquí dinámicamente -->
+                </div>
+            </div>
+
+            <!-- Otras páginas (estudiantes, actividades, etc.) -->
+            <div id="students" class="page">
+                <div class="header">
+                    <h1>Estudiantes</h1>
+                </div>
+            </div>
+
+            <div id="activities" class="page">
+                <div class="header">
+                    <h1>Actividades</h1>
+                </div>
+            </div>
+
+            <div id="reports" class="page">
+                <div class="header">
+                    <h1>Reportes</h1>
+                </div>
+            </div>
+
+            <div id="settings" class="page">
+                <div class="header">
+                    <h1>Configuración</h1>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <script src="script.js"></script>
+</body>
+
+</html>
