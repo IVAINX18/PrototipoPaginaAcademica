@@ -91,7 +91,7 @@ if ($method === 'GET') {
                 break;
                 
             case 'estudiantes_por_curso':
-                // Distribución de estudiantes por curso
+                // Distribución de estudiantes por curso (Top 10)
                 $stmt = $pdo->query("
                     SELECT 
                         c.nombre as curso,
@@ -101,6 +101,7 @@ if ($method === 'GET') {
                     WHERE c.estado = 'Activo'
                     GROUP BY c.id_curso
                     ORDER BY cantidad DESC
+                    LIMIT 10
                 ");
                 
                 $distribucion = $stmt->fetchAll();

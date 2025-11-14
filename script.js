@@ -687,47 +687,105 @@ function limpiarFormularioActividad() {
 }
 
 // =================================
-// REPORTES Y GRÁFICOS
+// REPORTES Y GRÁFICOS (OPTIMIZADOS)
 // =================================
 let chartEstudiantesCurso, chartRendimiento, chartPromediosCurso;
+let reportesCache = null;
+let reportesCacheTime = 0;
+const CACHE_DURATION = 30000; // 30 segundos
 
 async function cargarReportes() {
+    // Mostrar indicador de carga
+    mostrarCargandoReportes(true);
+    
     try {
-        // Gráfico de estudiantes por curso
-        await cargarGraficoEstudiantesCurso();
+        // Usar caché si está disponible
+        const ahora = Date.now();
+        if (reportesCache && (ahora - reportesCacheTime) < CACHE_DURATION) {
+            renderizarReportes(reportesCache);
+            return;
+        }
         
-        // Gráfico de rendimiento
-        await cargarGraficoRendimiento();
+        // Cargar datos en paralelo (más eficiente)
+        const [estudiantesPorCurso, rendimiento, cursosStats, topEstudiantes] = await Promise.all([
+            fetch(`${API_REPORTES}?action=estudiantes_por_curso`).then(r => r.json()),
+            fetch(`${API_REPORTES}?action=rendimiento`).then(r => r.json()),
+            fetch(`${API_REPORTES}?action=cursos_estadisticas`).then(r => r.json()),
+            fetch(`${API_REPORTES}?action=top_estudiantes`).then(r => r.json())
+        ]);
         
-        // Gráfico de promedios por curso
-        await cargarGraficoPromediosCurso();
+        // Guardar en caché
+        reportesCache = { estudiantesPorCurso, rendimiento, cursosStats, topEstudiantes };
+        reportesCacheTime = ahora;
         
-        // Top 10 estudiantes
-        await cargarTopEstudiantes();
+        // Renderizar
+        renderizarReportes(reportesCache);
         
     } catch (err) {
         console.error("Error al cargar reportes:", err);
+        mostrarErrorReportes();
+    } finally {
+        mostrarCargandoReportes(false);
     }
 }
 
-async function cargarGraficoEstudiantesCurso() {
+function renderizarReportes(datos) {
+    // Limitar datos para mejor rendimiento
+    cargarGraficoEstudiantesCurso(datos.estudiantesPorCurso.slice(0, 10));
+    cargarGraficoRendimiento(datos.rendimiento);
+    cargarGraficoPromediosCurso(datos.cursosStats.slice(0, 8));
+    cargarTopEstudiantes(datos.topEstudiantes);
+    
+    // Actualizar resumen en página de reportes
+    actualizarResumenReportes();
+}
+
+async function actualizarResumenReportes() {
     try {
-        const res = await fetch(`${API_REPORTES}?action=estudiantes_por_curso`);
-        const data = await res.json();
+        const res = await fetch(`${API_REPORTES}?action=general`);
+        const stats = await res.json();
         
+        const elementos = {
+            'resumenCursos': stats.cursos_activos || 0,
+            'resumenEstudiantes': stats.total_estudiantes || 0,
+            'resumenActividades': stats.total_actividades || 0,
+            'resumenPromedio': stats.promedio_general || '0.0'
+        };
+        
+        Object.keys(elementos).forEach(id => {
+            const el = document.getElementById(id);
+            if (el) el.textContent = elementos[id];
+        });
+    } catch (err) {
+        console.error("Error al actualizar resumen:", err);
+    }
+}
+
+function cargarGraficoEstudiantesCurso(data) {
+    try {
         const ctx = document.getElementById('chartEstudiantesCurso');
         if (!ctx) return;
         
-        if (chartEstudiantesCurso) chartEstudiantesCurso.destroy();
+        // Destruir gráfico anterior
+        if (chartEstudiantesCurso) {
+            chartEstudiantesCurso.destroy();
+            chartEstudiantesCurso = null;
+        }
+        
+        // Truncar nombres largos
+        const labels = data.map(d => {
+            const nombre = d.curso || 'Sin nombre';
+            return nombre.length > 20 ? nombre.substring(0, 20) + '...' : nombre;
+        });
         
         chartEstudiantesCurso = new Chart(ctx, {
             type: 'bar',
             data: {
-                labels: data.map(d => d.curso),
+                labels: labels,
                 datasets: [{
                     label: 'Estudiantes',
                     data: data.map(d => d.cantidad),
-                    backgroundColor: 'rgba(52, 152, 219, 0.8)',
+                    backgroundColor: 'rgba(52, 152, 219, 0.7)',
                     borderColor: 'rgba(52, 152, 219, 1)',
                     borderWidth: 1
                 }]
@@ -735,28 +793,50 @@ async function cargarGraficoEstudiantesCurso() {
             options: {
                 responsive: true,
                 maintainAspectRatio: false,
+                animation: {
+                    duration: 500 // Animación más rápida
+                },
+                plugins: {
+                    legend: {
+                        display: false
+                    },
+                    title: {
+                        display: false
+                    }
+                },
                 scales: {
-                    y: { beginAtZero: true }
+                    y: { 
+                        beginAtZero: true,
+                        ticks: {
+                            precision: 0
+                        }
+                    },
+                    x: {
+                        ticks: {
+                            maxRotation: 45,
+                            minRotation: 45
+                        }
+                    }
                 }
             }
         });
     } catch (err) {
-        console.error("Error:", err);
+        console.error("Error en gráfico estudiantes:", err);
     }
 }
 
-async function cargarGraficoRendimiento() {
+function cargarGraficoRendimiento(data) {
     try {
-        const res = await fetch(`${API_REPORTES}?action=rendimiento`);
-        const data = await res.json();
-        
         const ctx = document.getElementById('chartRendimiento');
         if (!ctx) return;
         
-        if (chartRendimiento) chartRendimiento.destroy();
+        if (chartRendimiento) {
+            chartRendimiento.destroy();
+            chartRendimiento = null;
+        }
         
         chartRendimiento = new Chart(ctx, {
-            type: 'pie',
+            type: 'doughnut', // Doughnut es más ligero que pie
             data: {
                 labels: data.map(d => d.estado),
                 datasets: [{
@@ -765,89 +845,129 @@ async function cargarGraficoRendimiento() {
                         'rgba(39, 174, 96, 0.8)',
                         'rgba(231, 76, 60, 0.8)',
                         'rgba(149, 165, 166, 0.8)'
-                    ]
-                }]
-            },
-            options: {
-                responsive: true,
-                maintainAspectRatio: false
-            }
-        });
-    } catch (err) {
-        console.error("Error:", err);
-    }
-}
-
-async function cargarGraficoPromediosCurso() {
-    try {
-        const res = await fetch(`${API_REPORTES}?action=cursos_estadisticas`);
-        const data = await res.json();
-        
-        const ctx = document.getElementById('chartPromediosCurso');
-        if (!ctx) return;
-        
-        if (chartPromediosCurso) chartPromediosCurso.destroy();
-        
-        chartPromediosCurso = new Chart(ctx, {
-            type: 'line',
-            data: {
-                labels: data.map(d => d.nombre),
-                datasets: [{
-                    label: 'Promedio',
-                    data: data.map(d => d.promedio || 0),
-                    borderColor: 'rgba(243, 156, 18, 1)',
-                    backgroundColor: 'rgba(243, 156, 18, 0.2)',
-                    tension: 0.4,
-                    fill: true
+                    ],
+                    borderWidth: 2,
+                    borderColor: '#fff'
                 }]
             },
             options: {
                 responsive: true,
                 maintainAspectRatio: false,
-                scales: {
-                    y: { 
-                        beginAtZero: true,
-                        max: 5
+                animation: {
+                    duration: 500
+                },
+                plugins: {
+                    legend: {
+                        position: 'bottom',
+                        labels: {
+                            boxWidth: 15,
+                            padding: 10
+                        }
                     }
                 }
             }
         });
     } catch (err) {
-        console.error("Error:", err);
+        console.error("Error en gráfico rendimiento:", err);
     }
 }
 
-async function cargarTopEstudiantes() {
+function cargarGraficoPromediosCurso(data) {
     try {
-        const res = await fetch(`${API_REPORTES}?action=top_estudiantes`);
-        const data = await res.json();
+        const ctx = document.getElementById('chartPromediosCurso');
+        if (!ctx) return;
         
+        if (chartPromediosCurso) {
+            chartPromediosCurso.destroy();
+            chartPromediosCurso = null;
+        }
+        
+        // Truncar nombres
+        const labels = data.map(d => {
+            const nombre = d.nombre || 'Sin nombre';
+            return nombre.length > 15 ? nombre.substring(0, 15) + '...' : nombre;
+        });
+        
+        chartPromediosCurso = new Chart(ctx, {
+            type: 'bar', // Cambiar a bar es más eficiente que line con fill
+            data: {
+                labels: labels,
+                datasets: [{
+                    label: 'Promedio',
+                    data: data.map(d => d.promedio || 0),
+                    backgroundColor: 'rgba(243, 156, 18, 0.7)',
+                    borderColor: 'rgba(243, 156, 18, 1)',
+                    borderWidth: 1
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                animation: {
+                    duration: 500
+                },
+                plugins: {
+                    legend: {
+                        display: false
+                    }
+                },
+                scales: {
+                    y: { 
+                        beginAtZero: true,
+                        max: 5,
+                        ticks: {
+                            stepSize: 1
+                        }
+                    },
+                    x: {
+                        ticks: {
+                            maxRotation: 45,
+                            minRotation: 45
+                        }
+                    }
+                }
+            }
+        });
+    } catch (err) {
+        console.error("Error en gráfico promedios:", err);
+    }
+}
+
+async function cargarTopEstudiantes(data) {
+    try {
         const container = document.getElementById('topEstudiantes');
         if (!container) return;
         
-        if (data.length === 0) {
-            container.innerHTML = '<p style="text-align: center; color: #999;">No hay datos disponibles</p>';
+        if (!data || data.length === 0) {
+            container.innerHTML = '<p style="text-align: center; color: #999; padding: 20px;">No hay datos disponibles</p>';
             return;
         }
+        
+        // Limitar a 10 registros
+        const top10 = data.slice(0, 10);
         
         container.innerHTML = `
             <table style="width: 100%; font-size: 0.9rem;">
                 <thead>
                     <tr style="border-bottom: 2px solid #eee;">
+                        <th style="text-align: left; padding: 8px; width: 10%;">#</th>
                         <th style="text-align: left; padding: 8px;">Estudiante</th>
-                        <th style="text-align: left; padding: 8px;">Curso</th>
-                        <th style="text-align: center; padding: 8px;">Nota</th>
+                        <th style="text-align: center; padding: 8px; width: 15%;">Nota</th>
                     </tr>
                 </thead>
                 <tbody>
-                    ${data.map((e, i) => `
+                    ${top10.map((e, i) => `
                         <tr style="border-bottom: 1px solid #f0f0f0;">
                             <td style="padding: 8px;">
-                                <span style="background: #3498db; color: white; padding: 2px 6px; border-radius: 3px; font-size: 0.8rem; margin-right: 5px;">${i + 1}</span>
-                                ${escapeHtml(e.estudiante)}
+                                <span style="background: ${i < 3 ? '#f39c12' : '#3498db'}; color: white; padding: 2px 8px; border-radius: 3px; font-size: 0.8rem; font-weight: bold;">${i + 1}</span>
                             </td>
-                            <td style="padding: 8px;">${escapeHtml(e.curso)}</td>
-                            <td style="text-align: center; padding: 8px; font-weight: bold; color: #27ae60;">${parseFloat(e.promedio).toFixed(1)}</td>
+                            <td style="padding: 8px;">
+                                <div style="font-weight: 500;">${escapeHtml(e.estudiante)}</div>
+                                <div style="font-size: 0.8rem; color: #777;">${escapeHtml(e.curso)}</div>
+                            </td>
+                            <td style="text-align: center; padding: 8px;">
+                                <span style="font-weight: bold; color: #27ae60; font-size: 1.1rem;">${parseFloat(e.promedio).toFixed(1)}</span>
+                            </td>
                         </tr>
                     `).join('')}
                 </tbody>
@@ -857,6 +977,55 @@ async function cargarTopEstudiantes() {
         console.error("Error:", err);
     }
 }
+
+// Funciones auxiliares para reportes
+function mostrarCargandoReportes(mostrar) {
+    const containers = ['chartEstudiantesCurso', 'chartRendimiento', 'chartPromediosCurso', 'topEstudiantes'];
+    containers.forEach(id => {
+        const el = document.getElementById(id);
+        if (el && mostrar) {
+            el.style.opacity = '0.5';
+        } else if (el) {
+            el.style.opacity = '1';
+        }
+    });
+}
+
+function mostrarErrorReportes() {
+    const mensaje = '<div style="text-align: center; padding: 20px; color: #e74c3c;"><i class="fas fa-exclamation-triangle"></i> Error al cargar reportes</div>';
+    
+    ['topEstudiantes'].forEach(id => {
+        const el = document.getElementById(id);
+        if (el) el.innerHTML = mensaje;
+    });
+}
+
+// Limpiar gráficos al cambiar de página (liberar memoria)
+document.addEventListener('DOMContentLoaded', function() {
+    const navLinks = document.querySelectorAll('.nav-link');
+    
+    navLinks.forEach(link => {
+        link.addEventListener('click', function() {
+            const targetPage = this.getAttribute('data-page');
+            
+            // Si no vamos a reportes, destruir gráficos
+            if (targetPage !== 'reports') {
+                if (chartEstudiantesCurso) {
+                    chartEstudiantesCurso.destroy();
+                    chartEstudiantesCurso = null;
+                }
+                if (chartRendimiento) {
+                    chartRendimiento.destroy();
+                    chartRendimiento = null;
+                }
+                if (chartPromediosCurso) {
+                    chartPromediosCurso.destroy();
+                    chartPromediosCurso = null;
+                }
+            }
+        });
+    });
+});
 
 // =================================
 // BÚSQUEDAS
